@@ -123,10 +123,20 @@ void putBytes (unsigned char * data, int len)
 int getByte()
     {
     char buf;
-    int n = read(com, &buf, 1);
+    int n;
+    int retry = 0;
+
+  retry:
+    n = read(com, &buf, 1);
     if (verbose>3) flsprintf(stdout,n<1?"RX: fail\n":"RX:  0x%02X\n", buf & 0xFF);
     if (n == 1) return buf & 0xFF;
 
+    if (n == 0 && retry++ < 5)
+        {
+        if (verbose>2)
+            printf("Serial port failed to receive a byte, retry ...\n");
+        goto retry;
+        }
     comErr("Serial port failed to receive a byte, read returned %d\n", n);
     return -1; // never reached
     }
