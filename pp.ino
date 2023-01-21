@@ -8,12 +8,25 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-#define ISP_PORT  PORTC
-#define ISP_DDR   DDRC
-#define ISP_PIN   PINC
-#define ISP_MCLR  3
-#define ISP_DAT   1
-#define ISP_CLK   0
+#if defined(ARDUINO_AVR_UNO)
+    // Arduino UNO ICSP Shield
+    #define ISP_PORT  PORTC
+    #define ISP_DDR   DDRC
+    #define ISP_PIN   PINC
+    #define ISP_MCLR  3     // A3 (PC3)
+    #define ISP_DAT   1     // A1 (PC1)
+    #define ISP_CLK   0     // A0 (PC0)
+#elif defined(ARDUINO_AVR_LEONARDO)
+    // pro micro Hand made shield
+    #define ISP_PORT  PORTF
+    #define ISP_DDR   DDRF
+    #define ISP_PIN   PINF
+    #define ISP_MCLR  6     // A1 (PF6)
+    #define ISP_DAT   5     // A2 (PF5)
+    #define ISP_CLK   4     // A3 (PF4)
+#else
+    #error Unsupported board selection.
+#endif
 
 #define  ISP_MCLR_1 ISP_PORT |= (1<<ISP_MCLR);
 #define  ISP_MCLR_0 ISP_PORT &= ~(1<<ISP_MCLR);
@@ -79,9 +92,10 @@ unsigned char rx_message[280],rx_message_ptr;
 unsigned int flash_buffer[260];
 unsigned int test,cfg_val;
 unsigned long addr;
-int main (void)
-{
 
+void setup(void)
+{
+#if defined(ARDUINO_AVR_UNO)
   // ************************** Added by J4F - 17/04/2021
   pinMode(13, OUTPUT);
   pinMode(A2, INPUT_PULLUP);
@@ -98,6 +112,11 @@ int main (void)
   UBRR0L = (uint8_t) ((_UBRR) & 0xFF);
   UCSR0B |= _BV(TXEN0);
   UCSR0B |= _BV(RXEN0);
+#endif
+
+#if defined(ARDUINO_AVR_LEONARDO)
+  while (!Serial);
+#endif
 
   ISP_CLK_D_0
   ISP_DAT_D_0
@@ -107,8 +126,10 @@ int main (void)
   ISP_MCLR_1
   rx_state = 0;
 
-  while (1)
-    {
+}
+
+void loop()
+{
     if (usart_rx_rdy())
       {
       rx = usart_rx_b();
@@ -185,7 +206,6 @@ int main (void)
           }
         }
       }
-    }
 }
 
 
@@ -568,12 +588,6 @@ for (i=0;i<n;i++)
   }
 }
 
-void usart_tx_b(uint8_t data)
-{
-while (!(UCSR0A & _BV(UDRE0)));
-UDR0 = data;
-}
-
 void usart_tx_s(uint8_t * data)
 {
 while (*data!=0)
@@ -581,6 +595,13 @@ while (*data!=0)
 }
 
 
+#if defined(ARDUINO_AVR_UNO)
+void usart_tx_b(uint8_t data)
+{
+while (!(UCSR0A & _BV(UDRE0)));
+UDR0 = data;
+}
+ 
 uint8_t usart_rx_rdy(void)
 {
 if (UCSR0A & _BV(RXC0))
@@ -593,6 +614,24 @@ uint8_t usart_rx_b(void)
 {
 return (uint8_t) UDR0;
 }
+#endif
+
+#if defined(ARDUINO_AVR_LEONARDO)
+void usart_tx_b(uint8_t data)
+{
+Serial.write(data);
+}
+
+uint8_t usart_rx_rdy(void)
+{
+return Serial.available();
+}
+
+uint8_t usart_rx_b(void)
+{
+return (uint8_t)Serial.read();
+}
+#endif
 
 
 void usart_tx_hexa_8 (uint8_t value)
