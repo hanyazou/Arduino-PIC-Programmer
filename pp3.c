@@ -19,6 +19,7 @@ int parse_hex (char * filename, unsigned char * progmem, unsigned char * config)
 size_t getlinex(char **lineptr, size_t *n, FILE *stream) ;
 void comErr(char *fmt, ...);
 void flsprintf(FILE* f, char *fmt, ...);
+void finalizeSerialPort(void);
 
 char * COM = "";
 char * PP_VERSION = "0.99";
@@ -29,7 +30,8 @@ char * PP_VERSION = "0.99";
 #define	CF_P18F_Q8x	13
 
 int verbose = 1,verify = 1,program = 1,sleep_time = 0;
-int devid_expected,devid_mask,baudRate,com,flash_size,page_size,chip_family,config_size;
+int devid_expected,devid_mask,baudRate,flash_size,page_size,chip_family,config_size;
+int com = -1;
 unsigned char file_image[70000],progmem[PROGMEM_LEN], config_bytes[CONFIG_LEN];
 
 //*********************************************************************************//
@@ -75,11 +77,24 @@ void initSerialPort()
         {
         perror(COM);
         printf("set attr error");
+        finalizeSerialPort();
         abort();
         }
     tcflush(com,TCIOFLUSH); // just in case some crap is the buffers
     }
 
+void finalizeSerialPort()
+    {
+    if (0 <= com)
+        {
+        if (verbose>2)
+            printf("Closing: %s\n",COM);
+        close(com);
+        if (verbose>2)
+            printf("Closed: %s\n",COM);
+        }
+    com = -1;
+    }
 
 void putByte(int byte)
     {
@@ -172,6 +187,13 @@ void initSerialPort()
 
 
     }
+
+void finalizeSerialPort()
+    {
+    CloseHandle(port_handle);
+    }
+
+
 void putByte(int byte)
     {
     int n;
@@ -224,6 +246,7 @@ void comErr(char *fmt, ...)
     fprintf(stderr,"%s", buf);
     perror(COM);
     va_end(va);
+    finalizeSerialPort();
     abort();
     }
 
@@ -344,6 +367,7 @@ void parseArgs(int argc, char *argv[])
                     fprintf (stderr,"Unknown option character `\\x%x'.\n",optopt);
             default:
                 fprintf (stderr,"Bug, unhandled option '%c'\n",c);
+                finalizeSerialPort();
                 abort ();
             }
         }
@@ -628,6 +652,7 @@ int main(int argc, char *argv[])
     if (parse_hex(filename,pm_point,cm_point))  //parse and write content of hex file into buffers
         {
         fprintf (stderr,"Fail to read input file.\n");
+        finalizeSerialPort();
         abort ();
         }
 
@@ -748,6 +773,7 @@ int main(int argc, char *argv[])
         if (verbose>0) printf ("OK\n");
         }
     prog_exit_progmode();
+    finalizeSerialPort();
     return 0;
     }
 
