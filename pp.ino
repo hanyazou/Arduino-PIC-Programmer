@@ -93,6 +93,12 @@ unsigned int flash_buffer[260];
 unsigned int test,cfg_val;
 unsigned long addr;
 
+char debug_msg[80];
+void debug_message(char* msg)
+{
+// Serial1.println(msg);
+}
+
 void setup(void)
 {
 #if defined(ARDUINO_AVR_UNO)
@@ -116,6 +122,9 @@ void setup(void)
 
 #if defined(ARDUINO_AVR_LEONARDO)
   while (!Serial);
+
+  Serial1.begin(9600);
+  Serial1.println("hello");
 #endif
 
   ISP_CLK_D_0
@@ -130,6 +139,12 @@ void setup(void)
 
 void loop()
 {
+    if (!usart_rx_rdy())
+    {
+    static int c = 0;
+    if ((++c % 0x8000) == 0)
+      debug_message("loop() ...");
+    }
     if (usart_rx_rdy())
       {
       rx = usart_rx_b();
@@ -138,18 +153,21 @@ void loop()
         {
         if (rx_message[0]==0x02)
           {
+          debug_message("exit_progmode");
           exit_progmode();
           usart_tx_b (0x82);
           rx_state = 0;
           }
         if (rx_message[0]==0x40)
           {
+          debug_message("p16c enter_progmode");
           p16c_enter_progmode();
           usart_tx_b (0xC0);
           rx_state = 0;
           }
         if (rx_message[0]==0x41)
           {
+          debug_message("p16c read_pgm");
           usart_tx_b (0xC1);
           addr = (((unsigned long)(rx_message[3]))<<16) + (((unsigned long)(rx_message[4]))<<8) + (((unsigned long)(rx_message[5]))<<0);
           p16c_isp_read_pgm (flash_buffer, addr, rx_message[2]);
@@ -162,12 +180,14 @@ void loop()
           }
         if (rx_message[0]==0x43)
           {
+          debug_message("p16c bulk_erase");
           p16c_bulk_erase ();
           usart_tx_b (0xC3);
           rx_state = 0;
           }
         if (rx_message[0]==0x44)
           {
+          debug_message("p16c write_cfg");
           addr = (((unsigned long)(rx_message[3]))<<16) + (((unsigned long)(rx_message[4]))<<8) + (((unsigned long)(rx_message[5]))<<0);
           cfg_val = rx_message[6];
           cfg_val = (cfg_val<<8) + rx_message[7];
@@ -177,6 +197,7 @@ void loop()
           }
         if (rx_message[0]==0x45)
           {
+          debug_message("p18q write_cfg");
           addr = (((unsigned long)(rx_message[3]))<<16) + (((unsigned long)(rx_message[4]))<<8) + (((unsigned long)(rx_message[5]))<<0);
           p18q_isp_write_cfg (rx_message[6], addr);
           usart_tx_b (0xC5);
@@ -184,17 +205,21 @@ void loop()
           }
         if (rx_message[0]==0x46)
           {
+          debug_message("p18q write_pgm ...");
           addr = (((unsigned long)(rx_message[3]))<<16) + (((unsigned long)(rx_message[4]))<<8) + (((unsigned long)(rx_message[5]))<<0);
           for (i=0;i<rx_message[2]/2;i++)
             {
             flash_buffer[i] = (((unsigned int)(rx_message[(2*i)+1+6]))<<8) + (((unsigned int)(rx_message[(2*i)+0+6]))<<0);
             }
           p18q_isp_write_pgm (flash_buffer, addr, rx_message[2]/2);
+          debug_message("p18q write_pgm ... done");
           usart_tx_b (0xC6);
+          debug_message("p18q write_pgm: send 0xC6");
           rx_state = 0;
           }
         if (rx_message[0]==0x47)
           {
+          debug_message("p18q read_cfg");
           usart_tx_b (0xC7);
           addr = (((unsigned long)(rx_message[3]))<<16) + (((unsigned long)(rx_message[4]))<<8) + (((unsigned long)(rx_message[5]))<<0);
           p18q_isp_read_cfg (flash_buffer, addr, rx_message[2]);
@@ -212,16 +237,21 @@ void loop()
 
 unsigned char rx_state_machine (unsigned char state, unsigned char rx_char)
 {
+
 if (state==0)
   {
     rx_message_ptr = 0;
     rx_message[rx_message_ptr++] = rx_char;
+    sprintf(debug_msg, "s0->1:%02x", rx_char);
+    debug_message(debug_msg);
     return 1;
   }
 if (state==1)
   {
     bytes_to_receive = rx_char;
     rx_message[rx_message_ptr++] = rx_char;
+    sprintf(debug_msg, "s1->%d:%02x", bytes_to_receive==0 ? 3 : 2, rx_char);
+    debug_message(debug_msg);
     if (bytes_to_receive==0) return 3;
     return 2;
   }
@@ -229,6 +259,11 @@ if (state==2)
   {
     rx_message[rx_message_ptr++] = rx_char;
     bytes_to_receive--;
+    if (bytes_to_receive==0)
+      {
+      sprintf(debug_msg, "s2->%d:%02x", bytes_to_receive==0 ? 3 : 2, rx_char);
+      debug_message(debug_msg);
+      }
     if (bytes_to_receive==0) return 3;
   }
 return state;
