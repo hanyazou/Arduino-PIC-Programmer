@@ -534,6 +534,11 @@ int prog_exit_progmode (void)
     return 0;
     }
 
+int prog_reset (void)
+    {
+    return prog_exit_progmode();
+    }
+
 int prog_get_device_id (void)
     {
     unsigned char mem_str[10];
@@ -657,6 +662,10 @@ int main(int argc, char *argv[])
         if ((i%2)!=0)
             file_image[i] = 0x3F&file_image[i];
         }
+
+    printf ("Reset the target and wait for 30ms\n");
+    prog_reset();
+    sleep_ms (30);
 
     prog_enter_progmode();  //enter programming mode and probe the target
     i = prog_get_device_id();
